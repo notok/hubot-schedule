@@ -7,6 +7,7 @@
 #
 # Configuration:
 #   HUBOT_SCHEDULE_DEBUG - set "1" for debug
+#   HUBOT_SCHEDULE_SINGLE_LINE - set "1" if you want to limit message to be single line
 #   HUBOT_SCHEDULE_DONT_RECEIVE - set "1" if you don't want hubot to be processed by scheduled message
 #   HUBOT_SCHEDULE_DENY_EXTERNAL_CONTROL - set "1" if you don't want to allow anyone to control schedule for other rooms
 #   HUBOT_SCHEDULE_LIST_REPLACE_TEXT - set JSON object like '{"@":"[at]"}' to configure text replacement used when listing scheduled messages
@@ -28,6 +29,7 @@
 # configuration settings
 config =
   debug: process.env.HUBOT_SCHEDULE_DEBUG
+  single_line: process.env.HUBOT_SCHEDULE_SINGLE_LINE
   dont_receive: process.env.HUBOT_SCHEDULE_DONT_RECEIVE
   deny_external_control: process.env.HUBOT_SCHEDULE_DENY_EXTERNAL_CONTROL
   list:
@@ -42,6 +44,12 @@ STORE_KEY = 'hubot_schedule'
 
 is_blank = (s) -> !s?.trim()
 
+regex_mesg = '.|\\s'
+if config.single_line is '1'
+  regex_mesg = '.'
+regex_add = "schedule (?:new|add)(?: #(.*))? \"(.*?)\" ((?:#{regex_mesg})*)$"
+regex_upd = "schedule (?:upd|update) (\d+) ((?:#{regex_mesg})*)"
+
 module.exports = (robot) ->
   robot.brain.on 'loaded', =>
     syncSchedules robot
@@ -49,7 +57,7 @@ module.exports = (robot) ->
   if !robot.brain.get(STORE_KEY)
     robot.brain.set(STORE_KEY, {})
 
-  robot.respond /schedule (?:new|add)(?: #(.*))? "(.*?)" ((?:.|\s)*)$/i, (msg) ->
+  robot.respond ///#{regex_add}///i, (msg) ->
     target_room = msg.match[1]
     if config.deny_external_control is '1' and not is_blank(target_room)
       if target_room not in [msg.message.user.room, msg.message.user.reply_to]
@@ -77,7 +85,7 @@ module.exports = (robot) ->
     else
       msg.send 'No messages have been scheduled'
 
-  robot.respond /schedule (?:upd|update) (\d+) ((?:.|\s)*)/i, (msg) ->
+  robot.respond ///#{regex_upd}///i, (msg) ->
     updateSchedule robot, msg, msg.match[1], msg.match[2]
 
   robot.respond /schedule (?:del|delete|remove|cancel) (\d+)/i, (msg) ->
